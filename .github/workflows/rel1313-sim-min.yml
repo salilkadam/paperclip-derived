@@ -26,3 +26,12 @@ jobs:
           corepack enable
           corepack prepare pnpm@9.15.4 --activate
           pnpm --version
+      - name: install (repo copy)
+        run: |
+          set -euo pipefail
+          cp -r repo repo2
+          cd repo2
+          sudo rm -f /usr/local/bin/pnpm /usr/local/bin/yarn
+          corepack enable
+          corepack prepare pnpm@9.15.4 --activate
+          pnpm install --no-frozen-lockfile
