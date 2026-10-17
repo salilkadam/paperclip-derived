@@ -3,42 +3,95 @@ on:
   workflow_dispatch:
     inputs:
       upstream_index:
-        description: 64-hex multi-arch index digest of ghcr.io/paperclipai/paperclip
-        required: true
+        required: false
         default: "1661b3dd3fdf7a9b59542d1ced464c3faf9dc8309798b4d15a9923ed32795307"
       source_commit:
-        description: 40-hex upstream source SHA (native provenance stamp)
-        required: true
+        required: false
         default: "bba6a45f0d364cfd962ac59b3bdf2426a8222adb"
       push_repo:
-        description: push destination (owner/name in ghcr)
-        required: true
+        required: false
         default: "salilkadam/paperclip-derived"
       push_tag:
-        description: tag base (per-arch tags are <tag>-amd64/-arm64; index is <tag>)
-        required: true
+        required: false
         default: "derived-bba6a45f0"
       arches:
         required: false
         default: "amd64 arm64"
 jobs:
-  build:
+  sim:
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      packages: write
-      id-token: write
     steps:
       - uses: actions/checkout@v4
-      - name: Build context (no docker)
+      - name: Install pinned toolchain
         run: |
-          echo "== inputs: idx=${{ inputs.upstream_index }} src=${{ inputs.source_commit }} push=${{ inputs.push_repo }}:${{ inputs.push_tag }} arches=${{ inputs.arches }}"
-          echo "== workflow commit: $(git rev-parse --short HEAD)"
-          echo "== overlay guard patch sha256: $(sha256sum docker-patch/private-hostname-guard.js | cut -d' ' -f1)"
-          echo "== Dockerfile.derived sha256: $(sha256sum deploy/docker/Dockerfile.derived | cut -d' ' -f1)"
-          UPSTREAM_INDEX=${{ inputs.upstream_index }} SOURCE_COMMIT=${{ inputs.source_commit }}           PUSH_REPO=${{ inputs.push_repo }} PUSH_TAG=${{ inputs.push_tag }} ARCHES="${{ inputs.arches }}"           bash -n deploy/docker/build-derived.sh && echo "build-derived.sh syntax OK"
-          bash -n deploy/docker/verify-derived.sh && echo "verify-derived.sh syntax OK"
-      - name: In-pod acceptance simulation (provenance+guard+overlay, §O)
+          set -euo pipefail
+          sudo add-apt-repository -y "deb http://apt.llvm.org/noble/ llvm-toolchain-noble-19 main" > /dev/null 2>&1 || true
+          sudo apt-get -qq update
+          sudo apt-get -qq -y --no-install-recommends install postgresql ca-certificates curl > /dev/null
+          psql --version; node --version
+      - name: Fetch pinned upstream source (bba6a45f, sha256-pinned)
         run: |
-          printf '%s' 'IyEvdXNyL2Jpbi9lbnYgYmFzaAojIHNpbS1pbnBvZC5zaCDigJQgcnVuIHRoZSBEby0yIGFjY2VwdGFuY2UgKHZlcmlmeS1kZXJpdmVkLnNoIGlucG9kKSBXSVRIT1VUIGEgY29udGFpbmVyCiMgcnVudGltZSwgYnkgYm9vdGluZyBhIGZhaXRoZnVsIGRlcml2ZWQtRlJPTSBmaWxlc3lzdGVtIHNpbXVsYXRpb24gYW5kIGV4ZWN1dGluZyB0aGUKIyByZWFsIHZlcmlmeS1kZXJpdmVkLnNoIGlucG9kIGNoZWNrcyBhZ2FpbnN0IGl0LiBWYWxpZGF0ZWQgMjAyNi0xMC0xNiAoUkVMLTEzMTMgcnVuCiMgM2IwMmFkOTApOiByZXByb2R1Y2VzIElOUE9EIFZFUklGWSBQQVNTIHdpdGggdGhlIGNvbXBpbGVkIHVwc3RyZWFtIHNlcnZlciwgdGhlCiMgZG9ja2VyLXBhdGNoIGd1YXJkIGxheWVyLCBhbmQgdGhlIGRlcGxveS8gb3ZlcmxheSDigJQgdGhlIGV4YWN0IGRlcml2ZWQtaW1hZ2UgbGF5ZXJpbmcuCiMKIyBXaGF0IGl0IHNpbXVsYXRlcyAoYW5kIGhvdyBlYWNoIHBpZWNlIG1pcnJvcnMgdGhlIGRlcml2ZWQgaW1hZ2UpOgojICAgL2FwcCB0cmVlICAgICAgICAgICAgPSByZXBvIGNsb25lIHdpdGggY29tcGlsZWQgc2VydmVyL2Rpc3QgKHVwc3RyZWFtIGFwcCBsYXllcnMpCiMgICBndWFyZCAuanMgICAgICAgICAgICA9IGRvY2tlci1wYXRjaC9wcml2YXRlLWhvc3RuYW1lLWd1YXJkLmpzICh0aGUgbWFuZGF0b3J5IENPUFkpCiMgICAucGFwZXJjbGlwLWJ1aWxkLWNvbW1pdCBhdCB0aGUgdHJlZSByb290ID0gdGhlIHVwc3RyZWFtIGltYWdlIG1hcmtlcgojICAgICAoL2FwcC8ucGFwZXJjbGlwLWJ1aWxkLWNvbW1pdDsgcmVhZEJ1aWxkQ29tbWl0IHJlc29sdmVzIC4uLy4uLyBmcm9tIHNlcnZlci9kaXN0KQojICAgZW52ICAgICAgICAgICAgICAgICAgPSBkZWxpYmVyYXRlbHkgV0lUSE9VVCBQQVBFUkNMSVBfQlVJTERfQ09NTUlUOiB1cHN0cmVhbSdzCiMgICAgIGRlcml2ZWQgaW1hZ2UgY2FycmllcyBuYXRpdmUgcHJvdmVuYW5jZSB2aWEgdGhlIG1hcmtlci9jb25maWcgRW52LCBOT1QgYQojICAgICBoYW5kLXNldCBlbnYsIHNvIHRoZSBzaW0gcHJvdmVzIHRoZSByZWFsIGZhbGxiYWNrIGNoYWluLgojICAgREIgICAgICAgICAgICAgICAgICAgPSB0aHJvd2F3YXkgZW1iZWRkZWQtcG9zdGdyZXMgKG5ldmVyIHRoZSBwcm9kdWN0aW9uIERBVEFCQVNFX1VSTCEpCiMgICBiaW5kICAgICAgICAgICAgICAgICA9IDEyNy4wLjAuTiBsb29wYmFjayBhbGlhcyArIGRlcGxveW1lbnQgbW9kZS9leHBvc3VyZSBtYXRjaGluZwojICAgICB0aGUgY2hhcnQgKGF1dGhlbnRpY2F0ZWQvcHJpdmF0ZSkgc28gdGhlIHByaXZhdGUtaG9zdG5hbWUgZ3VhcmQgaXMgQUNUSVZFLgojCiMgUmVxdWlyZXM6IG5vZGUsIGEgcmVwbyBjbG9uZSB3aXRoIHNlcnZlci9kaXN0IGJ1aWx0ICsgbm9kZV9tb2R1bGVzICh0aGlzIHBvZCdzIC9hcHApLAojIGFuZCBAZW1iZWRkZWQtcG9zdGdyZXMgYmluYXJpZXMgcHJlc2VudC4gVXNhZ2U6CiMgICBTSU1fRElSPTxzY3JhdGNoPiBzaW0taW5wb2Quc2ggW3JlcG9fcm9vdD0vYXBwXQpzZXQgLWV1byBwaXBlZmFpbApSRVBPPSIkezI6LS9hcHB9IgpTSU09IiR7U0lNX0RJUjo/U0lNX0RJUiByZXF1aXJlZH0iClBHUE9SVF9TSU09IiR7UEdQT1JUX1NJTTotNTQzMzF9IgpCSU5EX0hPU1Q9IiR7QklORF9IT1NUOi0xMjcuMC4wLjV9IgpFWFBFQ1RfU0hBPSIke0VYUEVDVF9TSEE6P0VYUEVDVF9TSEE9PDQwLWhleCB1cHN0cmVhbSBzb3VyY2UgU0hBPn0iCkJVTkRMRT0iJChjZCAiJChkaXJuYW1lICIkMCIpLy4uLy4uIiAmJiBwd2QpIgpbWyAiJEVYUEVDVF9TSEEiID1+IF5bMC05YS1mXXs0MH0kIF1dIHx8IHsgZWNobyAiRVhQRUNUX1NIQSBtdXN0IGJlIDQwLWhleCIgPiYyOyBleGl0IDI7IH0KCmVjaG8gIj09PiBbMS82XSBpc29sYXRlZCBwb3N0Z3JlcyBvbiA6JFBHUE9SVF9TSU0gKHRocm93YXdheSBEQikiClBHQklOPSQobHMgLWQgL2FwcC9ub2RlX21vZHVsZXMvLnBucG0vQGVtYmVkZGVkLXBvc3RncmVzK2xpbnV4LXg2NEAqL25vZGVfbW9kdWxlcy9AZW1iZWRkZWQtcG9zdGdyZXMvbGludXgteDY0L25hdGl2ZS9iaW4gMj4vZGV2L251bGwgfCBoZWFkIC0xKQpbWyAteCAiJFBHQklOL3BnX2N0bCIgXV0gfHwgeyBlY2hvICJlbWJlZGRlZC1wb3N0Z3JlcyBiaW5hcmllcyBub3QgZm91bmQiID4mMjsgZXhpdCAyOyB9Cm1rZGlyIC1wICIkU0lNL3BnIgpbWyAtZiAiJFNJTS9wZy9QR19WRVJTSU9OIiBdXSB8fCAiJFBHQklOL2luaXRkYiIgLUQgIiRTSU0vcGciIC1VIGJpb25pYyAtLWF1dGg9dHJ1c3QgPi9kZXYvbnVsbAoiJFBHQklOL3BnX2N0bCIgLUQgIiRTSU0vcGciIHN0YXJ0IC1vICItcCAkUEdQT1JUX1NJTSAtayAkU0lNIC1jIGxpc3Rlbl9hZGRyZXNzZXM9JzEyNy4wLjAuMSciIC1sICIkU0lNL3BnLmxvZyIgPi9kZXYvbnVsbCAyPiYxIHx8IHRydWUKbm9kZSAtZSAiCmNvbnN0IFA9Jy9hcHAvbm9kZV9tb2R1bGVzLy5wbnBtL3Bvc3RncmVzQDMuNC45X3BhdGNoX2hhc2g9c3J5bGU2cWQ1cWZtbnh2b2ViYWw0Z2FzaGkvbm9kZV9tb2R1bGVzL3Bvc3RncmVzJzsKaW1wb3J0KCdmaWxlOicrUCsnL3NyYy9pbmRleC5qcycpLnRoZW4oYXN5bmMgbT0+ewogIGNvbnN0IHNxbD1tLmRlZmF1bHQoe2hvc3Q6JzEyNy4wLjAuMScscG9ydDokUEdQT1JUX1NJTSx1c2VyOidiaW9uaWMnLGRhdGFiYXNlOidwb3N0Z3Jlcyd9KTsKICBhd2FpdCBzcWxcYERST1AgREFUQUJBU0UgSUYgRVhJU1RTIGJpb25pY19zaW1cYDsKICBhd2FpdCBzcWxcYENSRUFURSBEQVRBQkFTRSBiaW9uaWNfc2ltXGA7CiAgY29uc29sZS5sb2coJ2ZyZXNoIERCIHJlYWR5Jyk7IGF3YWl0IHNxbC5lbmQoKTsKfSk7IgoKZWNobyAiPT0+IFsyLzZdIGRlcml2ZWQtRlJPTSB0cmVlIChjb21waWxlZCBhcHAgKyBndWFyZCBsYXllciArIG1hcmtlcikiCmlmIFtbICEgLWYgIiRTSU0vYXBwLXJvb3Qvc2VydmVyL2Rpc3QvaW5kZXguanMiIF1dOyB0aGVuCiAgbWtkaXIgLXAgIiRTSU0vYXBwLXJvb3QiCiAgY3AgLWEgIiRSRVBPL3NlcnZlciIgIiRSRVBPL3BhY2thZ2UuanNvbiIgIiRSRVBPL2RlcGxveSIgIiRTSU0vYXBwLXJvb3QvIgogIGNwIC1hICIkUkVQTy9ub2RlX21vZHVsZXMvLiIgIiRTSU0vYXBwLXJvb3Qvbm9kZV9tb2R1bGVzLyIKICBsbiAtc2ZuICIkUkVQTy9ub2RlX21vZHVsZXMvLnBucG0iICIkU0lNL2FwcC1yb290L25vZGVfbW9kdWxlcy8ucG5wbSIKICBsbiAtc2ZuICIkUkVQTy9zZXJ2ZXIvbm9kZV9tb2R1bGVzIiAiJFNJTS9hcHAtcm9vdC9zZXJ2ZXIvbm9kZV9tb2R1bGVzIgpmaQpjcCAiJEJVTkRMRS9kb2NrZXItcGF0Y2gvcHJpdmF0ZS1ob3N0bmFtZS1ndWFyZC5qcyIgIiRTSU0vYXBwLXJvb3Qvc2VydmVyL2Rpc3QvbWlkZGxld2FyZS9wcml2YXRlLWhvc3RuYW1lLWd1YXJkLmpzIgpzaGFfc3JjPSQoc2hhMjU2c3VtICIkQlVORExFL2RvY2tlci1wYXRjaC9wcml2YXRlLWhvc3RuYW1lLWd1YXJkLmpzIiB8IGN1dCAtZCIgIiAtZjEpCnNoYV9zaW09JChzaGEyNTZzdW0gIiRTSU0vYXBwLXJvb3Qvc2VydmVyL2Rpc3QvbWlkZGxld2FyZS9wcml2YXRlLWhvc3RuYW1lLWd1YXJkLmpzIiB8IGN1dCAtZCIgIiAtZjEpCltbICIkc2hhX3NyYyIgPT0gIiRzaGFfc2ltIiBdXSB8fCB7IGVjaG8gImd1YXJkIGxheWVyIGhhc2ggbWlzbWF0Y2giID4mMjsgZXhpdCAxOyB9CmVjaG8gIiRFWFBFQ1RfU0hBIiA+ICIkU0lNL2FwcC1yb290Ly5wYXBlcmNsaXAtYnVpbGQtY29tbWl0IgoKZWNobyAiPT0+IFszLzZdIGJvb3Qgc2VydmVyIChhdXRoZW50aWNhdGVkK3ByaXZhdGU6IGd1YXJkIEFDVElWRTsgTk8gZW52IHN0YW1wKSIKbWtkaXIgLXAgIiRTSU0vaG9tZTIvaW5zdGFuY2VzL2RlZmF1bHQiCnNldHNpZCBub2h1cCBlbnYgLWkgUEFUSD0vdXNyL2xvY2FsL2JpbjovdXNyL2JpbjovYmluIEhPTUU9L3BhcGVyY2xpcCBcCiAgREFUQUJBU0VfVVJMPSJwb3N0Z3JlczovL2Jpb25pY0AxMjcuMC4wLjE6JFBHUE9SVF9TSU0vYmlvbmljX3NpbSIgXAogIEJFVFRFUl9BVVRIX1NFQ1JFVD1zaW0tcmVsMTMxMy1zZWNyZXQgXAogIFBBUEVSQ0xJUF9ERVBMT1lNRU5UX01PREU9YXV0aGVudGljYXRlZCBQQVBFUkNMSVBfREVQTE9ZTUVOVF9FWFBPU1VSRT1wcml2YXRlIFwKICBQQVBFUkNMSVBfQklORD1jdXN0b20gUEFQRVJDTElQX0JJTkRfSE9TVD0iJEJJTkRfSE9TVCIgXAogIFBBUEVSQ0xJUF9IT01FPSIkU0lNL2hvbWUyIiBcCiAgUEFQRVJDTElQX01JR1JBVElPTl9BVVRPX0FQUExZPXRydWUgUEFQRVJDTElQX1NFQ1JFVFNfUFJPVklERVI9bG9jYWwgXAogIG5vZGUgLS1pbXBvcnQgIiRSRVBPL25vZGVfbW9kdWxlcy8ucG5wbS90c3hANC4yMy4xMi9ub2RlX21vZHVsZXMvdHN4L2Rpc3QvbG9hZGVyLm1qcyIgXAogICIkU0lNL2FwcC1yb290L3NlcnZlci9kaXN0L2luZGV4LmpzIiA+ICIkU0lNL3NpbS1ib290LmxvZyIgMj4mMSA8IC9kZXYvbnVsbCAmClNJTV9QSUQ9JCEKCmVjaG8gIj09PiBbNC82XSB3YWl0IGZvciBsaXN0ZW4gKG1pZ3JhdGlvbnMgb24gZmlyc3QgYm9vdCB0YWtlIH4yLTMgbWluKSIKZm9yIGkgaW4gJChzZXEgMSAzMCk7IGRvCiAga2lsbCAtMCAkU0lNX1BJRCAyPi9kZXYvbnVsbCB8fCB7IGVjaG8gInNpbSBzZXJ2ZXIgZGllZDoiOyB0YWlsIC0zICIkU0lNL3NpbS1ib290LmxvZyI7IGV4aXQgMTsgfQogIGdyZXAgLXEgInJlY292ZXJ5IGNvbXBsZXRlIG9uICRCSU5EX0hPU1QiICIkU0lNL3NpbS1ib290LmxvZyIgMj4vZGV2L251bGwgJiYgYnJlYWsKICBzbGVlcCA4CmRvbmUKUE9SVD0kKGdyZXAgLW8gInJlY292ZXJ5IGNvbXBsZXRlIG9uICRCSU5EX0hPU1Q6WzAtOV0qIiAiJFNJTS9zaW0tYm9vdC5sb2ciIHwgaGVhZCAtMSB8IGN1dCAtZDogLWYzKQpbWyAtbiAiJFBPUlQiIF1dIHx8IHsgZWNobyAic2VydmVyIGRpZCBub3QgYmluZCIgPiYyOyBleGl0IDE7IH0KCmVjaG8gIj09PiBbNS82XSB2ZXJpZnktZGVyaXZlZC5zaCBpbnBvZCAodGhlIGFjY2VwdGFuY2UgY2hlY2tzKSIKIyByZXdyaXRlIC9hcHAgcGF0aHMgaW4gdGhlIHNjcmlwdCB0byB0aGUgc2ltIHJvb3QgKHNjcmlwdCBpcyBvdGhlcndpc2UgdW5tb2RpZmllZCkKc2VkICJzfC9hcHAvfCRTSU0vYXBwLXJvb3QvfGciICIkQlVORExFL2RlcGxveS9kb2NrZXIvdmVyaWZ5LWRlcml2ZWQuc2giID4gIiRTSU0vdmVyaWZ5LXNpbS5zaCIKSEVBTFRIX1VSTD0iaHR0cDovLyRCSU5EX0hPU1Q6JFBPUlQvYXBpL2hlYWx0aCIgRVhQRUNUX1NIQT0iJEVYUEVDVF9TSEEiIGJhc2ggIiRTSU0vdmVyaWZ5LXNpbS5zaCIgaW5wb2QKCmVjaG8gIj09PiBbNi82XSBjbGVhbnVwIgpraWxsICRTSU1fUElEIDI+L2Rldi9udWxsIHx8IHRydWUKIiRQR0JJTi9wZ19jdGwiIC1EICIkU0lNL3BnIiBzdG9wIC1tIGZhc3QgPi9kZXYvbnVsbCAyPiYxIHx8IHRydWUKZWNobyAiU0lNIElOUE9EOiBQQVNTIChuYXRpdmUgcHJvdmVuYW5jZSwgb3ZlcmxheSwgbGF1bmNoZXIsIGd1YXJkIHBhdGNoIOKAlCBubyBjb250YWluZXIgbmVlZGVkKSIK' | base64 -d > sim-inpod.sh
-          bash sim-inpod.sh
+          set -euo pipefail
+          curl -fsSL "https://codeload.github.com/paperclipai/paperclip/tar.gz/bba6a45f0d364cfd962ac59b3bdf2426a8222adb" -o src.tgz
+          echo "58634c70ce9864814bc770eb75bb57c09c3e434168081f060ebb0a47860ac84f  src.tgz" | sha256sum -c -
+          mkdir -p repo && tar xzf src.tgz -C repo --strip-components=1
+      - name: Install pnpm + deps (frozen; scripts on for native deps)
+        working-directory: repo
+        run: |
+          set -euo pipefail
+          sudo rm -f /usr/local/bin/pnpm /usr/local/bin/yarn
+          corepack enable
+          corepack prepare "$(node -e "console.log(require('./package.json').packageManager)")" --activate
+          pnpm install --frozen-lockfile
+      - name: Compile server
+        working-directory: repo
+        run: |
+          set -euo pipefail
+          corepack enable
+          pnpm -C server build
+      - name: Apply bionic guard patch (the mandatory derived-layer COPY)
+        working-directory: repo
+        run: |
+          set -euo pipefail
+          cp docker-patch/private-hostname-guard.js server/dist/middleware/private-hostname-guard.js
+          cp docker-patch/private-hostname-guard.js server/dist/middleware/private-hostname-guard.js
+          sha256sum server/dist/middleware/private-hostname-guard.js
+      - name: Start postgres 16 + boot server (authenticated/private, NO env stamp)
+        run: |
+          set -euo pipefail
+          PGBIN=$(ls -d /usr/lib/postgresql/*/bin | head -1)
+          sudo mkdir -p /var/lib/pgsqlsim && sudo chown postgres /var/lib/pgsqlsim
+          sudo -u postgres "$PGBIN/initdb" -D /var/lib/pgsqlsim -U bionic --auth=trust > /dev/null
+          sudo -u postgres "$PGBIN/pg_ctl" -D /var/lib/pgsqlsim -o "-p 54331 -c listen_addresses='127.0.0.1'" -l /tmp/pg.log start
+          sleep 2
+          sudo -u postgres psql -h 127.0.0.1 -p 54331 -U bionic -d postgres -c "CREATE DATABASE bionic_sim;" > /dev/null
+          ip addr add 127.0.0.5/32 dev lo 2>/dev/null || true
+          cd repo
+          setsid nohup env -i PATH=/usr/local/bin:/usr/bin:/bin HOME=/home/runner \
+            DATABASE_URL="postgres://bionic@127.0.0.1:54331/bionic_sim" \
+            BETTER_AUTH_SECRET=sim-rel1313-secret-0123456789 \
+            PAPERCLIP_DEPLOYMENT_MODE=authenticated PAPERCLIP_DEPLOYMENT_EXPOSURE=private \
+            PAPERCLIP_BIND=custom PAPERCLIP_BIND_HOST=127.0.0.5 \
+            PAPERCLIP_HOME=/home/runner/psim \
+            PAPERCLIP_MIGRATION_AUTO_APPLY=true PAPERCLIP_SECRETS_PROVIDER=local \
+            node server/dist/index.js > /tmp/boot.log 2>&1 < /dev/null &
+          echo $! > /tmp/sim.pid
+          for i in $(seq 1 40); do
+            kill -0 $(cat /tmp/sim.pid) 2>/dev/null || { echo "server died:"; tail -20 /tmp/boot.log; exit 1; }
+            grep -q "listening on http://127.0.0.5" /tmp/boot.log && break
+            sleep 5
+          done
+          grep -o "listening on http://127.0.0.5:[0-9]*" /tmp/boot.log | head -1
+          PORT=$(grep -o "listening on http://127.0.0.5:[0-9]*" /tmp/boot.log | head -1 | cut -d: -f3)
+          echo "PORT=$PORT" >> "$GITHUB_ENV"
+      - name: verify-derived.sh inpod (unmodified acceptance script)
+        run: |
+          set -euo pipefail
+          HEALTH_URL="http://127.0.0.5:${ env.PORT }/api/health" EXPECT_SHA=bba6a45f0d364cfd962ac59b3bdf2426a8222adb \
+            bash repo/deploy/docker/verify-derived.sh inpod
+          kill $(cat /tmp/sim.pid) 2>/dev/null || true
+      - name: Registry pin verification (provenance mode, upstream per-arch)
+        run: |
+          set -euo pipefail
+          bash repo/deploy/docker/verify-derived.sh provenance ghcr.io/paperclipai/paperclip@sha256:bf78a4ad83f4aabf8c673e0c06c4a91f6185aaed28419d423365a535a8a4ee05
+          bash repo/deploy/docker/verify-derived.sh provenance ghcr.io/paperclipai/paperclip@sha256:f40c29335cf2ff74dbbdd86ef0a2cb067bbadc1129058eb8c90bb0b6bef13c31
