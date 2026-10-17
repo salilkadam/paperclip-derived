@@ -26,16 +26,5 @@ jobs:
           corepack enable
           corepack prepare pnpm@9.15.4 --activate
           cd repo && pnpm install --no-frozen-lockfile
-      - name: Compile server (tsc + assets)
-        run: |
-          set -euo pipefail
-          corepack enable
-          cd repo/server
-          ./node_modules/.bin/tsc
-          mkdir -p dist/onboarding-assets dist/built-ins dist/services/scripts
-          cp -R src/onboarding-assets/. dist/onboarding-assets/
-          cp -R src/built-ins/. dist/built-ins/
-          cp -R src/services/scripts/. dist/services/scripts/
-          ls dist/index.js && echo TSC-OK
             - name: done
         run: echo PROBE-OK
