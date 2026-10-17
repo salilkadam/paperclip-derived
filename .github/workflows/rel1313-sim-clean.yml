@@ -25,8 +25,7 @@ jobs:
           sudo rm -f /usr/local/bin/pnpm /usr/local/bin/yarn
           corepack enable
           corepack prepare pnpm@9.15.4 --activate
-          cd repo
-          pnpm install --no-frozen-lockfile
+          pnpm --version
       - name: Compile server (tsc + assets; runner-vendor not needed for the health/guard path)
         run: |
           set -euo pipefail
