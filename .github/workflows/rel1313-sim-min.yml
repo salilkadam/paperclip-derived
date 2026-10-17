@@ -26,11 +26,19 @@ jobs:
           corepack enable
           corepack prepare pnpm@9.15.4 --activate
           pnpm --version
-      - name: compile server (probe2 - tsc only)
+      - name: pnpm probe
         run: |
           set -euo pipefail
-          cd repo
+          sudo rm -f /usr/local/bin/pnpm /usr/local/bin/yarn
+          corepack enable
+          corepack prepare pnpm@9.15.4 --activate
+          pnpm --version
+      - name: install (repo copy)
+        run: |
+          set -euo pipefail
+          cp -r repo repo2
+          cd repo2
+          sudo rm -f /usr/local/bin/pnpm /usr/local/bin/yarn
+          corepack enable
+          corepack prepare pnpm@9.15.4 --activate
           pnpm install --no-frozen-lockfile
-          cd server
-          ./node_modules/.bin/tsc
-          ls dist/index.js && echo TSC-OK
