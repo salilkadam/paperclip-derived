@@ -1,0 +1,34 @@
+# syntax=docker/dockerfile:1.6
+# REL-1313 derived-image pipeline: bionic production image built FROM a pinned
+# upstream multi-arch digest (ghcr.io/paperclipai/paperclip) plus the thin bionic
+# overlay. COPY-only: inherits upstream ENTRYPOINT/CMD/WORKDIR/ENV/USER, including
+# the build-time PAPERCLIP_BUILD_COMMIT env stamp (native provenance, no tag honesty).
+#
+# Build ONE arch at a time: UPSTREAM_REF must be a PER-ARCH manifest digest
+# (resolve both arches from the pinned index first; see build-derived.sh).
+#
+# Build context (OVERLAY_DIR) must contain:
+#   deploy/        -> bionic overlay (agents/*, helm chart, scripts)
+#   docker-patch/  -> patched compiled middleware (MUST exist; see below)
+ARG UPSTREAM_REF
+FROM ${UPSTREAM_REF}
+
+# Overlay: bionic agent definitions, chart, scripts -> /app/deploy/*
+COPY deploy/ /app/deploy/
+
+# Mandatory guard patch: bionic liveness/readiness probes hit the pod IP (a
+# non-loopback Host). Upstream's compiled private-hostname-guard.js has no
+# /health + /api/health early-return, so a derived image without this COPY
+# ships the unpatched guard and CrashLoops on probes. This mirrors
+# docker-patch/Dockerfile:7 exactly (base layer digests stay untouched).
+COPY docker-patch/private-hostname-guard.js /app/server/dist/middleware/private-hostname-guard.js
+
+# Reference copy of the patch set for in-image inspection/audit
+COPY docker-patch/ /app/docker-patch/
+
+# Lineage labels (additive; config Env with PAPERCLIP_BUILD_COMMIT is inherited, not rewritten)
+ARG SOURCE_COMMIT
+ARG UPSTREAM_INDEX
+LABEL org.opencontainers.image.base.digest="${UPSTREAM_INDEX}" \
+      org.opencontainers.image.revision="${SOURCE_COMMIT}" \
+      io.bionic.derived="true"
