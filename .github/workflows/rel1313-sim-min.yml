@@ -1,7 +1,6 @@
-name: rel1313-sim-min2
+name: rel1313-core
 on:
   push:
-    branches: [rel1313-e4]
 jobs:
   sim:
     runs-on: ubuntu-latest
