@@ -1,0 +1,37 @@
+name: rel1313-sim-final
+on:
+  push:
+    branches: [rel1313-e4]
+jobs:
+  sim:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install pinned toolchain
+        run: |
+          set -euo pipefail
+          sudo apt-get -qq update
+          sudo apt-get -qq -y --no-install-recommends install postgresql ca-certificates curl > /dev/null
+          psql --version; node --version
+      - name: Fetch pinned upstream source (bba6a45f, sha256-pinned)
+        run: |
+          set -euo pipefail
+          curl -fsSL "https://codeload.github.com/paperclipai/paperclip/tar.gz/bba6a45f0d364cfd962ac59b3bdf2426a8222adb" -o src.tgz
+          echo "58634c70ce9864814bc770eb75bb57c09c3e434168081f060ebb0a47860ac84f  src.tgz" | sha256sum -c -
+          mkdir -p repo && tar xzf src.tgz -C repo --strip-components=1
+      - name: pnpm probe
+        run: |
+          set -euo pipefail
+          sudo rm -f /usr/local/bin/pnpm /usr/local/bin/yarn
+          corepack enable
+          corepack prepare pnpm@9.15.4 --activate
+          pnpm --version
+      - name: install (repo copy)
+        run: |
+          set -euo pipefail
+          cp -r repo repo2
+          cd repo2
+          sudo rm -f /usr/local/bin/pnpm /usr/local/bin/yarn
+          corepack enable
+          corepack prepare pnpm@9.15.4 --activate
+          pnpm install --no-frozen-lockfile
