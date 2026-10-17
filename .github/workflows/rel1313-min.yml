@@ -5,5 +5,11 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - run: curl -fsSL "https://codeload.github.com/paperclipai/paperclip/tar.gz/bba6a45f0d364cfd962ac59b3bdf2426a8222adb" -o src.tgz
+      - run: echo "58634c70ce9864814bc770eb75bb57c09c3e434168081f060ebb0a47860ac84f  src.tgz" | sha256sum -c -
+      - run: mkdir -p repo && tar xzf src.tgz -C repo --strip-components=1
+      - run: sudo rm -f /usr/local/bin/pnpm /usr/local/bin/yarn
+      - run: corepack enable && corepack prepare pnpm@9.15.4 --activate
+      - run: cd repo && pnpm install --no-frozen-lockfile
       - name: echo
-        run: echo MIN-OK
+        run: echo CORE-OK
