@@ -1,7 +1,7 @@
 name: rel1313-sim-min
 on:
   push:
-    branches: [rel1313-e4]
+    branches: [rel1313-e5]
 jobs:
   sim:
     runs-on: ubuntu-latest
@@ -26,12 +26,11 @@ jobs:
           corepack enable
           corepack prepare pnpm@9.15.4 --activate
           pnpm --version
-      - name: install (repo copy)
+      - name: compile server (probe2 - tsc only)
         run: |
           set -euo pipefail
-          cp -r repo repo2
-          cd repo2
-          sudo rm -f /usr/local/bin/pnpm /usr/local/bin/yarn
-          corepack enable
-          corepack prepare pnpm@9.15.4 --activate
+          cd repo
           pnpm install --no-frozen-lockfile
+          cd server
+          ./node_modules/.bin/tsc
+          ls dist/index.js && echo TSC-OK
