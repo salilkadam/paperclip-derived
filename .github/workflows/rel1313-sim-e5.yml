@@ -1,0 +1,52 @@
+name: rel1313-sim-e5
+on:
+  push:
+    branches: [rel1313-e5]
+jobs:
+  sim:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install pinned toolchain
+        run: |
+          set -euo pipefail
+          sudo apt-get -qq update
+          sudo apt-get -qq -y --no-install-recommends install postgresql ca-certificates curl > /dev/null
+          psql --version; node --version
+      - name: Fetch pinned upstream source (bba6a45f, sha256-pinned)
+        run: |
+          set -euo pipefail
+          curl -fsSL "https://codeload.github.com/paperclipai/paperclip/tar.gz/bba6a45f0d364cfd962ac59b3bdf2426a8222adb" -o src.tgz
+          echo "58634c70ce9864814bc770eb75bb57c09c3e434168081f060ebb0a47860ac84f  src.tgz" | sha256sum -c -
+          mkdir -p repo && tar xzf src.tgz -C repo --strip-components=1
+      - name: Install pnpm + deps (no-frozen: upstream lockfile drift at pinned commit)
+        run: |
+          set -euo pipefail
+          sudo rm -f /usr/local/bin/pnpm /usr/local/bin/yarn
+          corepack enable
+          corepack prepare pnpm@9.15.4 --activate
+          cd repo
+          pnpm install --no-frozen-lockfile
+      - name: Compile server (tsc + assets; runner-vendor not needed for the health/guard path)
+        run: |
+          set -euo pipefail
+          corepack enable
+          cd repo/server
+          ./node_modules/.bin/tsc
+          mkdir -p dist/onboarding-assets dist/built-ins dist/services/scripts
+          cp -R src/onboarding-assets/. dist/onboarding-assets/
+          cp -R src/built-ins/. dist/built-ins/
+          cp -R src/services/scripts/. dist/services/scripts/
+          ls dist/index.js && echo TSC-OK
+      - name: Apply bionic guard patch (the mandatory derived-layer COPY)
+        run: |
+          set -euo pipefail
+          sha256sum deploy-bionic/docker/Dockerfile.derived
+          cp docker-patch/private-hostname-guard.js repo/server/dist/middleware/private-hostname-guard.js
+          sha256sum repo/server/dist/middleware/private-hostname-guard.js
+          test "$(sha256sum repo/server/dist/middleware/private-hostname-guard.js | cut -d' ' -f1)" = "0e233abf1f70019be158b785d6542225986d077ae9551ce48796b4b4c8a50c28"
+            - name: Registry pin verification (provenance PASSx2)
+        run: |
+          set -euo pipefail
+          bash deploy-bionic/docker/verify-derived.sh provenance ghcr.io/paperclipai/paperclip@sha256:bf78a4ad83f4aabf8c673e0c06c4a91f6185aaed28419d423365a535a8a4ee05
+          bash deploy-bionic/docker/verify-derived.sh provenance ghcr.io/paperclipai/paperclip@sha256:f40c29335cf2ff74dbbdd86ef0a2cb067bbadc1129058eb8c90bb0b6bef13c31

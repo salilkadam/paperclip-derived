@@ -1,7 +1,7 @@
 name: rel1313-sim-final
 on:
   push:
-    branches: [rel1313-e4]
+    branches: [rel1313-e5]
 jobs:
   sim:
     runs-on: ubuntu-latest
