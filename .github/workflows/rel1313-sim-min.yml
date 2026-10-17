@@ -1,4 +1,4 @@
-name: rel1313-sim-min
+name: rel1313-sim-min2
 on:
   push:
     branches: [rel1313-e4]
