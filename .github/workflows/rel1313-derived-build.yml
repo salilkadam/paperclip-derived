@@ -13,11 +13,11 @@ on:
       push_repo:
         description: push destination repo (owner/name)
         required: true
-        default: "docker4zerocool/bionic"
+        default: "salilkadam/paperclip-derived"
       push_tag:
         description: push tag
         required: true
-        default: "derived-bba6a45f0-manual"
+        default: "derived-bba6a45f0"
       arches:
         description: space-separated arches
         required: false
@@ -25,20 +25,25 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
     steps:
       - uses: actions/checkout@v4
-      - name: Log in to ghcr.io
-        uses: docker/login-action@v3
+      - name: Azure OIDC login to ghcr (docker/login-action@v4+ for ACR-style audience)
+        uses: docker/login-action@v4
         with:
           registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
       - name: Derive image
         run: |
           docker buildx version
           UPSTREAM_INDEX=${{ inputs.upstream_index }} SOURCE_COMMIT=${{ inputs.source_commit }} \
           PUSH_REPO=${{ inputs.push_repo }} PUSH_TAG=${{ inputs.push_tag }} ARCHES="${{ inputs.arches }}" \
           bash deploy/docker/build-derived.sh
-      - name: Verify provenance of pushed tag
+      - name: Verify provenance of pushed per-arch tags
         run: |
-          PUSH_TAG=${{ inputs.push_tag }} bash deploy/docker/verify-derived.sh provenance "${{ inputs.push_repo }}:${{ inputs.push_tag }}"
+          for a in ${{ inputs.arches }}; do
+            PUSH_REPO="${{ inputs.push_repo }}" PUSH_TAG="${{ inputs.push_tag }}" \
+            bash deploy/docker/verify-derived.sh provenance "${{ inputs.push_repo }}:${{ inputs.push_tag }}-$a"
+          done
