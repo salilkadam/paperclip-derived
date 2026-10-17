@@ -7,12 +7,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Install pinned toolchain
+      - name: HW1 apt
         run: |
           set -euo pipefail
-          sudo apt-get -qq update
-          sudo apt-get -qq -y --no-install-recommends install postgresql ca-certificates curl > /dev/null
-          psql --version; node --version
+          sudo apt-get -qq update && sudo apt-get -qq -y --no-install-recommends install postgresql ca-certificates curl >/dev/null && psql --version
       - name: Fetch pinned upstream source (bba6a45f, sha256-pinned)
         run: |
           set -euo pipefail
