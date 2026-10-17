@@ -92,7 +92,7 @@ jobs:
       - name: verify-derived.sh inpod (unmodified acceptance script)
         run: |
           set -euo pipefail
-          HEALTH_URL="http://127.0.0.5:${ env.PORT }/api/health" EXPECT_SHA=bba6a45f0d364cfd962ac59b3bdf2426a8222adb \
+          HEALTH_URL="http://127.0.0.5:${PORT}/api/health" EXPECT_SHA=bba6a45f0d364cfd962ac59b3bdf2426a8222adb \
             bash repo/deploy/docker/verify-derived.sh inpod
           kill $(cat /tmp/sim.pid) 2>/dev/null || true
       - name: Registry pin verification (provenance mode, upstream per-arch)
