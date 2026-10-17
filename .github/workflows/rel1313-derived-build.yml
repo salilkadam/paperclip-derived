@@ -1,0 +1,44 @@
+name: rel1313-derived-build
+on:
+  workflow_dispatch:
+    inputs:
+      upstream_index:
+        description: 64-hex multi-arch index digest of ghcr.io/paperclipai/paperclip
+        required: true
+        default: "1661b3dd3fdf7a9b59542d1ced464c3faf9dc8309798b4d15a9923ed32795307"
+      source_commit:
+        description: 40-hex upstream source SHA (native provenance stamp)
+        required: true
+        default: "bba6a45f0d364cfd962ac59b3bdf2426a8222adb"
+      push_repo:
+        description: push destination repo (owner/name)
+        required: true
+        default: "docker4zerocool/bionic"
+      push_tag:
+        description: push tag
+        required: true
+        default: "derived-bba6a45f0-manual"
+      arches:
+        description: space-separated arches
+        required: false
+        default: "amd64 arm64"
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Log in to ghcr.io
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Derive image
+        run: |
+          docker buildx version
+          UPSTREAM_INDEX=${{ inputs.upstream_index }} SOURCE_COMMIT=${{ inputs.source_commit }} \
+          PUSH_REPO=${{ inputs.push_repo }} PUSH_TAG=${{ inputs.push_tag }} ARCHES="${{ inputs.arches }}" \
+          bash deploy/docker/build-derived.sh
+      - name: Verify provenance of pushed tag
+        run: |
+          PUSH_TAG=${{ inputs.push_tag }} bash deploy/docker/verify-derived.sh provenance "${{ inputs.push_repo }}:${{ inputs.push_tag }}"
