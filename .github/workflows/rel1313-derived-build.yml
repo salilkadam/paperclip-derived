@@ -11,15 +11,14 @@ on:
         required: true
         default: "bba6a45f0d364cfd962ac59b3bdf2426a8222adb"
       push_repo:
-        description: push destination repo (owner/name)
+        description: push destination (owner/name in ghcr)
         required: true
         default: "salilkadam/paperclip-derived"
       push_tag:
-        description: push tag
+        description: tag base (per-arch tags are <tag>-amd64/-arm64; index is <tag>)
         required: true
         default: "derived-bba6a45f0"
       arches:
-        description: space-separated arches
         required: false
         default: "amd64 arm64"
 jobs:
@@ -31,13 +30,18 @@ jobs:
       id-token: write
     steps:
       - uses: actions/checkout@v4
-      - name: Azure OIDC login to ghcr (docker/login-action@v4+ for ACR-style audience)
-        uses: docker/login-action@v4
+      - name: Login to ghcr (password = ${{ github.actor }} PAT)
+        uses: docker/login-action@v3
         with:
           registry: ghcr.io
-      - name: Derive image
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Show context
         run: |
+          echo "dispatch inputs: idx=${{ inputs.upstream_index }} src=${{ inputs.source_commit }} push=${{ inputs.push_repo }}:${{ inputs.push_tag }}"
           docker buildx version
+      - name: Derive image (FROM pinned upstream digest + bionic overlay)
+        run: |
           UPSTREAM_INDEX=${{ inputs.upstream_index }} SOURCE_COMMIT=${{ inputs.source_commit }} \
           PUSH_REPO=${{ inputs.push_repo }} PUSH_TAG=${{ inputs.push_tag }} ARCHES="${{ inputs.arches }}" \
           bash deploy/docker/build-derived.sh
