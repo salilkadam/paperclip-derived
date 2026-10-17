@@ -1,0 +1,7 @@
+name: rel1313-e2-hello
+on: [push]
+jobs:
+  hello:
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo HELLO-E2 && uname -a
