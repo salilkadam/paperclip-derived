@@ -1,22 +1,7 @@
 name: rel1313-derived-build
 on:
-  workflow_dispatch:
-    inputs:
-      upstream_index:
-        required: false
-        default: "1661b3dd3fdf7a9b59542d1ced464c3faf9dc8309798b4d15a9923ed32795307"
-      source_commit:
-        required: false
-        default: "bba6a45f0d364cfd962ac59b3bdf2426a8222adb"
-      push_repo:
-        required: false
-        default: "salilkadam/paperclip-derived"
-      push_tag:
-        required: false
-        default: "derived-bba6a45f0"
-      arches:
-        required: false
-        default: "amd64 arm64"
+  push:
+    branches: [rel1313-e2]
 jobs:
   sim:
     runs-on: ubuntu-latest
