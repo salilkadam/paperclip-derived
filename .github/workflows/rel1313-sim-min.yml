@@ -1,4 +1,4 @@
-name: rel1313-derived-build
+name: rel1313-sim-min
 on:
   push:
     branches: [rel1313-e4]
